@@ -1,0 +1,397 @@
+-----------------------------------------------------
+-----------------------------------------------------
+-- 2009/10/15 초보자퀘스트  by kmlee
+-- 2010/01/17 WelcomeToBnb  by buffmail
+
+-- NumberData.Log1 : 보상 받은 회수
+-- NumberData.Log2 : 게임 진행 상태 ( 상태에 따라 다른대사 출력 및 보상 지급 )
+-- NumberData.Log3 : mission 마다 완료체크를 위해 사용 
+--					1, 2단계:사용안함, 3단계:하루가 경과했는지 체크용으로 사용, 
+--					3, 4, 5 단계:각각의 게임타입을 몇번 play했는지 체크
+-- NumberData.Log4 : 바늘 사용 여부 체크(1자리), 무료바늘 구매 여부 체크(10자리)
+--					ex) 00: 미션진행중 아님, 
+--						01 : 바늘사용 미션중, 
+--						02 : 바늘 사용 미션 완료, 
+--						10 : 무료바늘 구매 미션중, 
+--						20 : 무료바늘구매 미션 완료
+-- NumberData.Log5 : 퀘스트 시작 시간
+-- NumberData.Log6 : 최근 보상 획득 시간
+-----------------------------------------------------
+-- 1Stage : 우체통 클릭후 대사 읽기 
+-- 2Stage : 게임내에서 바늘 사용
+-- 3Stage : 무료 바늘 구매 
+-- 4Stage : 몬스터모드 3회 플레이
+-- 5Stage : 일반모드 3회 플레이
+-----------------------------------------------------
+NumberData = {}
+StringData = {}
+
+-- 수정시 서버 루아파일의 내용도 수정해야 한다.  
+CompleteGameCount = 3
+
+StateTypeShowMessage = 0
+StateTypeMission = 1
+StateTypeReward = 2
+
+MissionStateIndex = { 5, 20, 25, 29, 33 }				-- 미션 진행중
+RewardStateIndex = { 13, 21, 26, 30, 34 }				-- 보상 인덱스
+ 
+FinalState = 35
+StateTable = 
+{
+	[0] = StateTypeShowMessage, 	-- state 0
+	StateTypeShowMessage,			-- state 1
+	StateTypeShowMessage,			-- state 2
+	StateTypeShowMessage,			-- state 3
+	StateTypeShowMessage,			-- state 4 
+	StateTypeMission,			-- state 5
+	StateTypeShowMessage,			-- state 6
+	StateTypeShowMessage,			-- state 7
+	StateTypeShowMessage,			-- state 8
+	StateTypeShowMessage,			-- state 9
+	StateTypeShowMessage,			-- state 10
+	StateTypeShowMessage,			-- state 11
+	StateTypeShowMessage,			-- state 12
+	StateTypeReward,			-- state 13
+	StateTypeShowMessage,			-- state 14
+	StateTypeShowMessage,			-- state 15
+	StateTypeShowMessage,			-- state 16
+	StateTypeShowMessage,			-- state 17
+	StateTypeShowMessage,			-- state 18
+	StateTypeShowMessage,			-- state 19
+	StateTypeMission,			-- state 20
+	StateTypeReward,			-- state 21
+	StateTypeShowMessage,			-- state 22
+	StateTypeShowMessage,			-- state 23
+	StateTypeShowMessage,			-- state 24
+	StateTypeMission,			-- state 25
+	StateTypeReward,			-- state 26
+	StateTypeShowMessage,			-- state 27
+	StateTypeShowMessage,			-- state 28
+	StateTypeMission,			-- state 29
+	StateTypeReward,			-- state 30
+	StateTypeShowMessage,			-- state 31
+	StateTypeShowMessage,			-- state 32
+	StateTypeMission,			-- state 33
+	StateTypeReward,			-- state 34
+	StateTypeShowMessage,			-- state 35	
+}
+
+-- 출력  메시지들
+NormalString = 
+{
+	[0] = "WelcomeToBnB_InfoMsg00", 
+	"WelcomeToBnB_InfoMsg01",	
+	"WelcomeToBnB_InfoMsg02",	
+	"WelcomeToBnB_InfoMsg03",	
+	"WelcomeToBnB_InfoMsg04",	
+	"",	-- mission string [ state 5 ]
+	"WelcomeToBnB_InfoMsg06",
+	"WelcomeToBnB_InfoMsg07",
+	"WelcomeToBnB_InfoMsg08",
+	"WelcomeToBnB_InfoMsg09",
+	"WelcomeToBnB_InfoMsg10",
+	"WelcomeToBnB_InfoMsg11",
+	"WelcomeToBnB_InfoMsg12",
+	"WelcomeToBnB_InfoMsg13",
+	"WelcomeToBnB_InfoMsg14",	
+	"WelcomeToBnB_InfoMsg15",
+	"WelcomeToBnB_InfoMsg16",
+	"WelcomeToBnB_InfoMsg17",
+	"WelcomeToBnB_InfoMsg18",
+	"WelcomeToBnB_InfoMsg19",
+	"",		-- mission string [ state 20 ]
+	"WelcomeToBnB_InfoMsg21",
+	"WelcomeToBnB_InfoMsg22",
+	"WelcomeToBnB_InfoMsg23",
+	"WelcomeToBnB_InfoMsg24",
+	"",		-- mission string [ state 25 ]
+	"WelcomeToBnB_InfoMsg26",
+	"WelcomeToBnB_InfoMsg27",
+	"WelcomeToBnB_InfoMsg28",
+	"WelcomeToBnB_InfoMsg29",
+	"WelcomeToBnB_InfoMsg30",	
+	"WelcomeToBnB_InfoMsg31",	
+	"WelcomeToBnB_InfoMsg32",	
+	"",		-- mission string [ state 33 ]
+	"WelcomeToBnB_InfoMsg34",
+	"WelcomeToBnB_InfoMsg35",
+}
+
+ColorBlue = 255
+ColorDefault = 6431488
+
+
+MissionString = {}
+MissionString[5] = 
+{
+	{ msg = "WelcomeToBnB_MissionMsg01_1", x = 50, y = 305, fontType = -1, fontColor = ColorDefault },
+}
+MissionString[20] = 
+{
+	{ msg = "WelcomeToBnB_MissionMsg02_1", x = 50, y = 305, fontType = -1, fontColor = ColorDefault },
+}
+MissionString[25] = 
+{
+	{ msg = "WelcomeToBnB_MissionMsg03_1", x = 50, y = 305, fontType = -1, fontColor = ColorDefault },
+}
+-- "이제 직접 [협공배틀]을 해봐. 방법은 위의 그림에 있으니까 어렵지 않을거야. 반드시 3번 플레이 해야만 해! ==남은 플레이 회수 [00] 번=="
+MissionString[29] = 
+{
+	{ msg = "WelcomeToBnB_MissionMsg04_1", x = 50, y = 305, fontType = -1, fontColor = ColorDefault },
+}
+-- "이제 직접 [몬스터모드]를 해봐. 하는 방법은 위의 그림에 있어. 간단하지? 반드시 3번 플레이 해야만 해! ==남은 플레이 회수 [00] 번=="
+MissionString[33] = 
+{
+	{ msg = "WelcomeToBnB_MissionMsg05_1", x = 50, y = 305, fontType = -1, fontColor = ColorDefault },
+}
+MapBtnIdx = { 5, 20, 24, 27, 32 }		-- 버튼 활성화
+-- 이미지 정보
+MapBtnInfo = 					-- 각 미션 별로 표시할 버튼들 ..
+{
+	[MapBtnIdx[1]] = { path = "Quest/Quest_2010_01_26_BT01_01", x = 263, y = 181 },			-- 북치는 문어 버튼
+	[MapBtnIdx[2]] = { path = "Quest/Quest_2010_01_26_BT02_01", x = 54, y = 181 },			-- 물풍선 버튼	
+	[MapBtnIdx[3]] = { path = "Quest/Quest_2010_01_26_BT03_01", x = 215, y = 70 },			-- 상점 버튼
+	[MapBtnIdx[4]] = { path = "Quest/Quest_2010_01_26_BT04_01", x = 54, y = 81 },			-- 몬스터 모드 버튼	
+	[MapBtnIdx[5]] = { path = "Quest/Quest_2010_01_26_BT05_01", x = 159, y = 149 },			-- 일반 모드 버튼	
+}
+
+AniImgInfo = 
+{
+	[1] = { path = "Quest/Quest_2010_01_26_AN01", x = 263, y = 181 },
+	[2] = { path = "Quest/Quest_2010_01_26_AN02", x = 54, y = 181 },
+	[3] = { path = "Quest/Quest_2010_01_26_AN03", x = 215, y = 70 },
+	[4] = { path = "Quest/Quest_2010_01_26_AN04", x = 54, y = 81 },
+	[5] = { path = "Quest/Quest_2010_01_26_AN05", x = 159, y = 149 },
+}
+
+-- ipairs로 CompleteImgInfo table을 순회하기 위해
+-- 완성 이미지 출력시작하는 인덱스
+CompleteImgIdx = { 11, 20, 24, 27, 32 }
+CompleteImgInfo = 
+{
+	[CompleteImgIdx[1]] = { path = "Quest/Quest_2010_01_26_BT01_02", x = 263, y = 181 }, 	-- 1stage클리어 이미지
+	[CompleteImgIdx[2]] = { path = "Quest/Quest_2010_01_26_BT02_02", x = 54, y = 181 },		-- 2stage클리어 이미지
+	[CompleteImgIdx[3]] = { path = "Quest/Quest_2010_01_26_BT03_02", x = 215, y = 70 },		-- 3stage클리어 이미지
+	[CompleteImgIdx[4]] = { path = "Quest/Quest_2010_01_26_BT04_02", x = 54, y = 81 },		-- 5stage클리어 이미지
+	[CompleteImgIdx[5]] = { path = "Quest/Quest_2010_01_26_BT05_02", x = 159, y = 149 },	-- 6stage클리어 이미지	
+}
+
+NextBtnInfo = { path = "Quest/Quest_2010_01_26_BT06", x = 287, y = 346 }
+
+InfoImgLodumani = { path = "Quest/Quest_2010_01_26_Back02" }
+InfoImgQuest = { path = "Quest/Quest_2010_01_26_Back03" }
+InfoImgEquipNeedle = { path = "Quest/Quest_2010_01_26_Back04" }
+InfoImgUseNeedle = { path = "Quest/Quest_2010_01_26_Back05" }
+InfoImgBuyNeedle = { path = "Quest/Quest_2010_01_26_Back06" }
+InfoImgStageClear = { path = "Quest/Quest_2010_01_26_Back07" }
+InfoImgPVP = { path = "Quest/Quest_2010_01_26_Back08" }
+InfoImgNormal = { path = "Quest/Quest_2010_01_26_Back09" }
+
+-- 추가 정보 이미지
+InformationImgInfo =
+{
+	[2] = InfoImgLodumani,
+	[3] = InfoImgLodumani,
+	[7] = InfoImgQuest,
+	[15] = InfoImgEquipNeedle,
+	[17] = InfoImgUseNeedle,
+	[18] = InfoImgUseNeedle,
+	[25] = InfoImgBuyNeedle,
+	[28] = InfoImgStageClear,
+	[29] = InfoImgStageClear,
+	[33] = InfoImgPVP,
+	[35] = InfoImgNormal,
+}
+
+function OnShowQuest()
+	NumberData.UseDBString = 1
+	local state = NumberData.Log2
+
+	NumberData.QuestBtn_Visible = 1
+	StringData.QuestBtn_Path = "Quest/Quest_2010_01_26_List"
+
+	NumberData.IsSystemQuest = 1
+	StringData.QuestName = "WelcomeToBnB_QuestName"	--"초보자 퀘스트"
+	
+	NumberData.Back_Visible = 1
+	
+	if state >= FinalState	-- 마지막 화면 출력
+	then
+		StringData.Back_Path = "Quest/Quest_2010_01_26_Back09"		
+		return 0	
+	else					-- 진행 배경 화면 출력
+		StringData.Back_Path = "Quest/Quest_2010_01_26_Back01"
+	end	
+	
+	-- 메시지 출력
+	if StateTable[state] == StateTypeMission 			
+	then
+		local msgCount = 0
+		
+		for k, v in ipairs(MissionString[state]) do
+			local style = string.format("Msg%02d_Style", msgCount)
+			local textColor = string.format("Msg%02d_TextColor", msgCount)
+			local posX = string.format("Msg%02d_PosX", msgCount)
+			local posY = string.format("Msg%02d_PosY", msgCount)
+			local content = string.format("Msg%02d_Content", msgCount)
+			local height = string.format("Msg%02d_Height", msgCount)
+
+			NumberData[style] = v.fontType
+			NumberData[textColor] = v.fontColor
+			NumberData[posX] = v.x
+			NumberData[posY] = v.y
+			NumberData[height] = 14
+			StringData[content] = v.msg
+								
+			msgCount = msgCount + 1				-- 메시지 갯수 증가		
+		end
+				
+		-- 현재 남은 게임수를 계산하여 출력
+		if (state == MissionStateIndex[4]) or (state == MissionStateIndex[5]) or (state == MissionStateIndex[6]) 
+		then
+			local style = string.format("Msg%02d_Style", msgCount)
+			local textColor = string.format("Msg%02d_TextColor", msgCount)
+			local posX = string.format("Msg%02d_PosX", msgCount)
+			local posY = string.format("Msg%02d_PosY", msgCount)
+			local content = string.format("Msg%02d_Content", msgCount)
+			
+			NumberData[style] = 3
+			NumberData[textColor] = ColorBlue
+			NumberData[posX] = 181
+			NumberData[posY] = 347
+			StringData[content] = ""..(CompleteGameCount - NumberData.Log3)		-- 남은 게임수 계산
+			
+			msgCount = msgCount + 1						
+		end				
+		
+		NumberData.Msg_Count = msgCount			
+	else
+		NumberData.Msg_Count = 1		
+		NumberData.Msg00_Style = 0
+		NumberData.Msg00_TextColor = GetColor(98, 35, 0)
+		NumberData.Msg00_OutlineColor = 0
+		NumberData.Msg00_PosX = 50
+		NumberData.Msg00_PosY = 305
+		NumberData.Msg00_Height = 14
+		StringData.Msg00_Content = NormalString[state]		
+	end		
+		
+		
+	-- 이미지 출력
+   	local imgInfo = InformationImgInfo[state]	
+	if imgInfo					-- 추가 정보 이미지가 있으면
+	then	
+		-- 배경 변경
+		StringData.Back_Path = imgInfo.path					   	
+   	else						-- 추가 정보 이미지가 없으면   	
+   		-- 미션별 완료 이미지 출력	
+		local imgCount = 0	
+		for index, imgIndex in ipairs(CompleteImgIdx) do
+			if imgIndex > state 
+			then
+				break;
+			end			
+			
+			local path = string.format("Img%02d_Path", imgCount)
+			local frame = string.format("Img%02d_Frame", imgCount)
+			local posX = string.format("Img%02d_PosX", imgCount)
+			local posY = string.format("Img%02d_PosY", imgCount)
+			
+			StringData[path] = CompleteImgInfo[imgIndex].path
+			NumberData[frame] = 0
+			NumberData[posX] = CompleteImgInfo[imgIndex].x
+			NumberData[posY] = CompleteImgInfo[imgIndex].y
+			imgCount = imgCount + 1		
+		end	   	   	
+   	   	
+   		NumberData.Img_Count = imgCount  
+   		
+   		if MapBtnInfo[state] == nil
+   		then
+   			NumberData.AniImg_Count = 1	
+	  	  		
+			NumberData.AniImg00_Frame = 0	
+			NumberData.AniImg00_PosX = 0
+			NumberData.AniImg00_PosY = 0
+			NumberData.AniImg00_Total = 2			
+			NumberData.AniImg00_Delay = 10
+			StringData.AniImg00_Path = ""   			
+   		
+   			-- 미션 버튼이 활성화 되있지 않은 상태이면 
+   			-- 애니 이미지 출력
+	   		if (MapBtnIdx[1] < state) and (CompleteImgIdx[1] > state)
+	   		then
+	   			StringData.AniImg00_Path = AniImgInfo[1].path
+	   			NumberData.AniImg00_PosX = AniImgInfo[1].x
+				NumberData.AniImg00_PosY = AniImgInfo[1].y	   		
+	   		elseif (MapBtnIdx[2] < state) and (CompleteImgIdx[2] > state)
+	   		then 
+	   			StringData.AniImg00_Path = AniImgInfo[2].path
+	   			NumberData.AniImg00_PosX = AniImgInfo[2].x
+				NumberData.AniImg00_PosY = AniImgInfo[2].y
+	   		elseif (MapBtnIdx[3] < state) and (CompleteImgIdx[3] > state)
+	   		then 
+	   			StringData.AniImg00_Path = AniImgInfo[3].path
+	   			NumberData.AniImg00_PosX = AniImgInfo[3].x
+				NumberData.AniImg00_PosY = AniImgInfo[3].y
+	   		elseif (MapBtnIdx[4] < state) and (CompleteImgIdx[4] > state)
+	   		then 
+	   			StringData.AniImg00_Path = AniImgInfo[4].path
+	   			NumberData.AniImg00_PosX = AniImgInfo[4].x
+				NumberData.AniImg00_PosY = AniImgInfo[4].y	   		
+	   		elseif (MapBtnIdx[5] < state) and (CompleteImgIdx[5] > state)
+	   		then 
+	   			StringData.AniImg00_Path = AniImgInfo[5].path
+	   			NumberData.AniImg00_PosX = AniImgInfo[5].x
+				NumberData.AniImg00_PosY = AniImgInfo[5].y	   		
+	   		end   		
+   		end   		 	
+   	end	
+   	
+   	if MapBtnInfo[state] ~= nil 
+   	then
+   		-- 버튼 활성화 시킬 상태이면
+   		if state == MissionStateIndex[2]		-- 혼자하기 입장 ( QuickJoin 버튼 )
+		then
+			NumberData.QuickJoinBtn_Visible = 1
+			NumberData.QuickJoinBtn_GameType = 15 			
+			NumberData.QuickJoinBtn_PosX = MapBtnInfo[state].x
+			NumberData.QuickJoinBtn_PosY = MapBtnInfo[state].y			
+			StringData.QuickJoinBtn_Path = MapBtnInfo[state].path	
+		else
+			NumberData.DoneBtn_Count = 1
+			NumberData.DoneBtn00_Visible = 1
+			NumberData.DoneBtn00_PosX = MapBtnInfo[state].x
+			NumberData.DoneBtn00_PosY = MapBtnInfo[state].y
+			StringData.DoneBtn00_Path = MapBtnInfo[state].path			
+		end   		   		
+   	elseif StateTable[state] ~= StateTypeMission
+   	then
+   		-- 미션 상태가 아니면 ( 다음 버튼 )
+   		NumberData.DoneBtn_Count = 1
+		NumberData.DoneBtn00_Visible = 1
+		NumberData.DoneBtn00_PosX = NextBtnInfo.x
+		NumberData.DoneBtn00_PosY = NextBtnInfo.y
+		StringData.DoneBtn00_Path = NextBtnInfo.path   	
+   	end 
+   	
+	return 0
+end
+
+
+function GetNumInPos ( num, pos )
+	--
+	numTemp = math.floor (num / pos)
+	numInPos = 0
+	if numTemp ~= 0
+	then
+		numInPos = numTemp - math.floor ( numTemp / 10 ) * 10
+	end
+	return numInPos
+end
+
+function GetColor(red, green, blue)
+	color = (red * 65536) + (green * 256) + blue
+	return color
+end
